@@ -1,5 +1,5 @@
 """
-my PCA class (based on numpy.linalg.eig)
+my PCA class (based on numpy.linalg.svd)
 """
 
 import numpy as np
@@ -31,7 +31,7 @@ def make_data(m=1000, n=100, p=0.25):
 
 #___________________________________________________________________________
 
-from numpy.linalg import eig
+from numpy.linalg import svd
 
 def scale(X):
     return (X - X.mean(axis=0)) / X.std(axis=0)
@@ -46,11 +46,11 @@ class PCA:
 
     def fit(self, X):
         m,n = X.shape
-        λ,E = eig(cov(scale(X)))
+        E,λ,_ = svd(cov(scale(X)))
         nx = np.argsort(λ)[::-1]
         λ = λ[nx]
         E = (E.T[nx]).T
-        info = self.PC_variances_ = λ / λ.sum()
+        info = self.pc_variances_ = λ / λ.sum()
 
         if (0 < self.n_components < 1):
             d = (np.cumsum(info) < float(self.n_components)).sum()+1
@@ -69,30 +69,41 @@ class PCA:
     def invert(self, Xpca):
         return np.matmul(self.E, Xpca.T).T
 
+
+def mean_squared_distance(original_data, reconstructed_data):
+    """aka reconstruction error"""
+    X,Xbac = original_data, reconstructed_data
+    reconstruction_error = (((X - Xbac)**2).sum(axis=1)**.5).sum() / len(X)
+    return float(reconstruction_error)
+    
 #==========================================================================
 
-def main():
-    X,y = make_data(m=1000, n=100, p=0.25)
+"""DEMO"""
+import matplotlib.pyplot as plt; from mpl_toolkits.mplot3d import Axes3D
 
-    pca = PCA(n_components=0.99)
-    Xpca = pca.fit_transform(X)
-    Xbac = pca.invert(Xpca)
+#multy-dimensional
+X,y = make_data(m=1000, n=100, p=0.25)
+pca = PCA(n_components=0.95)
+Xpca = pca.fit_transform(X)
+Xbac = pca.invert(Xpca)
 
+print("number of principle components:", Xpca.shape[1])
+print("reconstruction error:", round(mean_squared_distance(X,Xbac), 4))
 
-    #VISUALIZE
-    import matplotlib.pyplot as plt
-
-    X,y = make_data(m=1000, n=3, p=0)
-
-    pca = PCA(n_components=2)
-    Xpca = pca.fit_transform(X)
-    Xbac = pca.invert(Xpca)
-
-    from mpl_toolkits.mplot3d import Axes3D
-    sp = plt.axes(projection='3d')
-    sp.plot(*X.T, '.')
-    sp.plot(*Xbac.T, '.', alpha=0.3)
-    plt.show()
+#visualize cummulative variance
+plt.plot(np.cumsum(pca.pc_variances_))
 
 
-if __name__=="__main__":main()
+#VISUALIZE in 3D
+plt.figure()
+
+X,y = make_data(m=1000, n=3, p=0)
+
+pca = PCA(n_components=2)
+Xpca = pca.fit_transform(X)
+Xbac = pca.invert(Xpca)
+
+sp = plt.axes(projection='3d')
+sp.plot(*X.T, '.')
+sp.plot(*Xbac.T, '.', alpha=0.3)
+plt.show()
