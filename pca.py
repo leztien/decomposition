@@ -32,10 +32,6 @@ def make_data(m=1000, n=100, p=0.25):
 #___________________________________________________________________________
 
 from numpy.linalg import svd
-
-def scale(X):
-    return (X - X.mean(axis=0)) / X.std(axis=0)
-
 def cov(X):
     return sum(np.outer(x,x) for x in X) / (len(X)-1)
 
@@ -46,7 +42,14 @@ class PCA:
 
     def fit(self, X):
         m,n = X.shape
-        E,λ,_ = svd(cov(scale(X)))
+        self.mu, self.sd = X.mean(axis=0), X.std(axis=0, ddof=0)
+        self._mask = self.sd==0 
+        self.sd[self._mask] += 1e-10
+        
+        X = (X - self.mu) / self.sd
+        
+        E,λ,_ = svd(cov(X))
+
         nx = np.argsort(λ)[::-1]
         λ = λ[nx]
         E = (E.T[nx]).T
@@ -61,21 +64,32 @@ class PCA:
         return self
 
     def transform(self, X):
+        X = (X - self.mu) / self.sd
         return np.matmul(self.E.T, X.T).T
 
     def fit_transform(self, X):
-        return np.matmul(self.fit(X).E.T, X.T).T
+        self.fit(X)
+        return self.transform(X)
 
     def invert(self, Xpca):
-        return np.matmul(self.E, Xpca.T).T
+        Xbac = np.matmul(self.E, Xpca.T).T
+        sd = self.sd
+        sd[self._mask] = 0
+        return Xbac * self.sd +self.mu
+
 
 
 def mean_squared_distance(original_data, reconstructed_data):
-    """aka reconstruction error"""
-    X,Xbac = original_data, reconstructed_data
-    reconstruction_error = (((X - Xbac)**2).sum(axis=1)**.5).sum() / len(X)
+    """aka reconstruction error"""    
+    for X in (original_data, reconstructed_data):
+        mu = X.mean(axis=0)
+        sd = X.std(axis=0, ddof=0) + 1e-10
+        X -= mu
+        X /= sd
+    reconstruction_error = (((original_data - reconstructed_data)**2).sum(axis=1)**.5).sum() / len(X)
     return float(reconstruction_error)
-    
+
+
 #==========================================================================
 
 """DEMO"""
